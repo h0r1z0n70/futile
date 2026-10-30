@@ -42,8 +42,12 @@ export const say = (ch: string, txt: string, pings: string[] = []) =>
 		allowed_mentions: pings.length ? { parse: [], users: pings.slice(0, 100) } : nopings,
 	});
 
-export const drop = (ch: string, comps: unknown[]) =>
-	dc<{ id: string }>("POST", `/channels/${ch}/messages`, { flags: v2, components: comps, allowed_mentions: nopings });
+export const drop = (ch: string, comps: unknown[], pings: string[] = []) =>
+	dc<{ id: string }>("POST", `/channels/${ch}/messages`, {
+		flags: v2,
+		components: comps,
+		allowed_mentions: pings.length ? { parse: [], users: pings.slice(0, 100) } : nopings,
+	});
 
 export const redo = (ch: string, id: string, comps: unknown[]) =>
 	dc("PATCH", `/channels/${ch}/messages/${id}`, { flags: v2, components: comps, allowed_mentions: nopings });
