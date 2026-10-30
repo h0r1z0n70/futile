@@ -6,7 +6,7 @@ import * as give from "../lib/give.js";
 import { goal } from "../lib/goals.js";
 import { json, wrap } from "../lib/guard.js";
 import { ban, has, opt, timeout, unban } from "../lib/mod.js";
-import { ignof, nick, okname, owner, team } from "../lib/team.js";
+import { ignof, nick, okname, owner, team, teamok } from "../lib/team.js";
 
 export const POST = wrap(async (r) => {
 	const raw = await r.text();
@@ -70,7 +70,9 @@ async function link(i: any) {
 	const ign = String(opt(i.data.options, "username") ?? "").trim();
 	if (!okname.test(ign)) return "That is not a valid Minecraft name. Use 3 to 16 letters, numbers or _.";
 
-	const own = owner(await team(), ign);
+	const tm = await team();
+	if (!teamok) return "I can't read the member list. An admin needs to turn on Server Members Intent for the bot.";
+	const own = owner(tm, ign);
 	if (own && own !== u.id) return `**${esc(ign)}** is already linked to <@${own}>.`;
 
 	const n = nick(ign);
