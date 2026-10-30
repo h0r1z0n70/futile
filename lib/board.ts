@@ -1,57 +1,79 @@
 import { boardcards, type row } from "./cards.js";
-import { dcerr, drop, mine, recent, redo } from "./dc.js";
+import { dc, dcerr, drop, mine, recent, redo, textof, type msg } from "./dc.js";
 import { env } from "./env.js";
 
 export type dude = { name: string; dim: string };
 export type state = { bid: string; bh: string; did: string };
+type entry = { n: string; t: number; on: boolean; d: string };
 
-const hash = (s: string) => {
-	let h = 0x811c9dc5;
-	for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193) >>> 0;
-	return h.toString(16);
-};
-
+const stale = 3 * 60_000;
 const flake = (s: unknown): s is string => typeof s === "string" && /^\d{15,21}$/.test(s);
+const okname = /^[A-Za-z0-9_]{3,16}$/;
 
-export async function board(
-	ch: string, tm: Map<string, string>, ppl: dude[], seen: Record<string, number>, up: boolean, bid: unknown, bh: unknown, srv = "",
-): Promise<state> {
-	const all = new Map<string, row>();
-	const team = new Set([...tm.values()].map((n) => n.toLowerCase()));
-	const add = (name: string, on: boolean, dim?: string) => {
-		const k = name.toLowerCase();
-		const old = all.get(k);
-		if (old && (old.on || !on)) return;
-		all.set(k, { name, on, dim: on ? dim || undefined : undefined, seen: seenof(k), team: team.has(k) });
-	};
-	const lower: Record<string, number> = {};
-	for (const [k, v] of Object.entries(seen)) lower[k.toLowerCase()] = Math.max(lower[k.toLowerCase()] ?? 0, v);
-	const seenof = (k: string) => lower[k] ?? 0;
+function read(m: msg | null): Map<string, entry> {
+	const out = new Map<string, entry>();
+	if (!m) return out;
+	const hit = textof(m).match(/\]\(https?:\/\/[^)\s]*[?&]r=([A-Za-z0-9_-]+)\)/);
+	if (!hit) return out;
+	try {
+		const list = JSON.parse(Buffer.from(hit[1], "base64url").toString("utf8"));
+		if (!Array.isArray(list)) return out;
+		for (const x of list.slice(0, 200)) {
+			if (!Array.isArray(x) || typeof x[0] !== "string" || !okname.test(x[0])) continue;
+			out.set(x[0].toLowerCase(), { n: x[0], t: Number(x[1]) * 1000 || 0, on: x[2] === 1, d: typeof x[3] === "string" ? x[3].slice(0, 64) : "" });
+		}
+	} catch {
+		return out;
+	}
+	return out;
+}
 
-	for (const p of ppl) add(p.name, true, p.dim);
-	for (const n of Object.keys(seen)) add(n, false);
-	for (const n of tm.values()) add(n, false);
+const pack = (ros: Map<string, entry>) =>
+	Buffer.from(JSON.stringify([...ros.values()].map((e) => [e.n, Math.floor(e.t / 1000), e.on ? 1 : 0, e.d]))).toString("base64url");
 
-	const rows = [...all.values()].sort((a, b) =>
-		Number(b.on) - Number(a.on) ||
-		Number(b.team) - Number(a.team) ||
-		(a.on ? 0 : b.seen - a.seen) ||
-		a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-
-	const h = hash(JSON.stringify({ ch, up, srv, tz: env.tz, rows }));
-	let id = flake(bid) ? bid : null;
-	if (id && h === bh) return { bid: id, bh: h, did: "same" };
-
-	const cards = boardcards(rows, up, srv, env.tz);
-	if (!id) id = (await recent(ch)).find(mine)?.id ?? null;
-	if (id) {
+async function fetchboard(ch: string, bid: unknown): Promise<msg | null> {
+	if (flake(bid)) {
 		try {
-			await redo(ch, id, cards);
-			return { bid: id, bh: h, did: "edited" };
+			const m = await dc<msg>("GET", `/channels/${ch}/messages/${bid}`);
+			if (mine(m)) return m;
+		} catch (err) {
+			if (!(err instanceof dcerr && (err.code === 10008 || err.status === 404))) throw err;
+		}
+	}
+	return (await recent(ch)).find(mine) ?? null;
+}
+
+export async function board(ch: string, me: dude | null, up: boolean, bid: unknown, site: string, srv = ""): Promise<state> {
+	const rn = Date.now();
+	const m = await fetchboard(ch, bid);
+	const ros = read(m);
+	const before = pack(ros);
+	const old = me ? ros.get(me.name.toLowerCase()) : undefined;
+
+	if (me) ros.set(me.name.toLowerCase(), { n: me.name, t: rn, on: up, d: up ? me.dim : "" });
+	for (const e of ros.values()) if (e.on && rn - e.t > stale) e.on = false;
+
+	const fresh = old && old.on === up && (old.d === (up ? me?.dim : "")) && rn - old.t < 90_000;
+	const shown = [...ros.values()].map((e) => [e.n, e.on, e.on ? e.d : Math.floor(e.t / 60_000)]);
+	const prevshown = [...read(m).values()].map((e) => [e.n, e.on, e.on ? e.d : Math.floor(e.t / 60_000)]);
+	if (m && fresh && JSON.stringify(shown) === JSON.stringify(prevshown) && before.length) {
+		return { bid: m.id, bh: "", did: "same" };
+	}
+
+	const rows: row[] = [...ros.values()]
+		.map((e) => ({ name: e.n, on: e.on, dim: e.d || undefined, seen: e.on ? 0 : e.t }))
+		.sort((a, b) => Number(b.on) - Number(a.on) || (a.on ? 0 : b.seen - a.seen) || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+	const link = `https://${site}/?r=${pack(ros)}`;
+	const cards = boardcards(rows, srv, env.tz, link);
+
+	if (m) {
+		try {
+			await redo(ch, m.id, cards);
+			return { bid: m.id, bh: "", did: "edited" };
 		} catch (err) {
 			if (!(err instanceof dcerr && (err.code === 10008 || err.code === 50005 || err.status === 404))) throw err;
 		}
 	}
-	const m = await drop(ch, cards);
-	return { bid: m.id, bh: h, did: "posted" };
+	const made = await drop(ch, cards);
+	return { bid: made.id, bh: "", did: "posted" };
 }
