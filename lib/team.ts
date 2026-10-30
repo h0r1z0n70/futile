@@ -14,7 +14,21 @@ export function ignof(n: string | null | undefined) {
 	return m ? m[1] : null;
 }
 
+export let teamok = true;
+
 export async function team(): Promise<Map<string, string>> {
+	try {
+		const got = await load();
+		teamok = true;
+		return got;
+	} catch (err) {
+		teamok = false;
+		console.warn("cant read members, turn on Server Members Intent:", err instanceof Error ? err.message : err);
+		return new Map();
+	}
+}
+
+async function load(): Promise<Map<string, string>> {
 	const out = new Map<string, string>();
 	let after = "0";
 	for (let page = 0; page < 10; page++) {
