@@ -1,5 +1,5 @@
-import { blurple, esc, green, t, when, wrap } from "./cards.js";
-import { dc, drop, mine, recent, redo, say, textof, type msg } from "./dc.js";
+import { blurple, esc, green, grey, t, when, wrap } from "./cards.js";
+import { dc, drop, mine, recent, redo, textof, type msg } from "./dc.js";
 import { env } from "./env.js";
 
 const mark = encodeURIComponent("✅");
@@ -79,8 +79,8 @@ export async function start(i: any, prize: string, minutes: number, n: number) {
 async function finish(ch: string, g: gw) {
 	const winners = pick(await joiners(ch, g.m.id), g.n);
 	await redo(ch, g.m.id, over(g, winners));
-	if (winners.length) await say(ch, `Congratulations ${winners.map((w) => `<@${w}>`).join(", ")}! You won **${g.prize}**.`, winners);
-	else await say(ch, `Nobody joined the giveaway for **${g.prize}**, so there is no winner.`);
+	if (winners.length) await drop(ch, [wrap(green, [t(`### Congratulations ${winners.map((w) => `<@${w}>`).join(", ")}!\nYou won **${g.prize}**.`)])], winners);
+	else await drop(ch, [wrap(grey, [t(`Nobody joined the giveaway for **${g.prize}**, so there is no winner.`)])]);
 	return winners;
 }
 
@@ -113,7 +113,7 @@ export async function reroll(i: any, id?: string) {
 	const fresh = pick((await joiners(ch, g.m.id)).filter((u) => !old.has(u)), Math.max(1, g.winners.length || g.n));
 	if (!fresh.length) return "There is nobody left to pick.";
 	await redo(ch, g.m.id, over(g, fresh));
-	await say(ch, `New winner for **${g.prize}**: ${fresh.map((w) => `<@${w}>`).join(", ")}. Congratulations!`, fresh);
+	await drop(ch, [wrap(green, [t(`### New winner\n${fresh.map((w) => `<@${w}>`).join(", ")} won **${g.prize}**. Congratulations!`)])], fresh);
 	return "New winners were picked.";
 }
 
