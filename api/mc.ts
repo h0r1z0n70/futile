@@ -82,7 +82,8 @@ export const POST = wrap(async (r) => {
 	let bd = { bid: flake(b.bid) ? b.bid : "", bh: String(b.bh ?? ""), did: "skip" };
 	if (ch.active && evs.some((e) => boardy.has(e?.t))) {
 		try {
-			bd = await board(ch.active, await c.getteam(), ppl, seen, up, b.bid, b.bh, c.srv);
+			const site = (r.headers.get("x-forwarded-host") ?? new URL(r.url).host).replace(/[^a-z0-9.:-]/gi, "") || "futile.vercel.app";
+			bd = await board(ch.active, ppl[0] ?? null, up, b.bid, site, c.srv);
 		} catch (err) {
 			errs.push(`board: ${err instanceof Error ? err.message : err}`);
 		}
