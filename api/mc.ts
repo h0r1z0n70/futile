@@ -103,7 +103,6 @@ async function handle(ev: any, c: ctx) {
 		case "say": {
 			const who = nm(ev.who), msg = tx(ev.msg, 400).trim();
 			if (!who || !msg || dupe(`s:${who}:${msg}`, 8_000)) return;
-			if (env.chatteam && !(await isteam(c, who))) return;
 			c.posts.push({ who, text: safe(msg) });
 			return;
 		}
@@ -122,7 +121,6 @@ async function handle(ev: any, c: ctx) {
 		case "rip": {
 			const who = nm(ev.who);
 			if (!who || !c.ch.deaths) return;
-			if (env.deathsteam && !(await isteam(c, who))) return;
 			if (dupe(`rip:${who.toLowerCase()}:${tx(ev.msg, 80)}`, 20_000)) return;
 			await drop(c.ch.deaths, [ripcard({ who, msg: tx(ev.msg) || `${who} died`, at: at(ev), total: int(ev.total, 0, 1e9), srv: c.srv })]);
 			return;
@@ -130,7 +128,6 @@ async function handle(ev: any, c: ctx) {
 		case "gg": {
 			const by = nm(ev.by), who = nm(ev.who);
 			if (!by || !who || !c.ch.kills) return;
-			if (env.teamonly && !(await isteam(c, by))) return;
 			if (dupe(`gg:${by.toLowerCase()}:${who.toLowerCase()}`, 20_000)) return;
 			const hp = ev.hp === undefined || ev.hp === null ? null : fl(ev.hp, 2048);
 			await drop(c.ch.kills, [ggcard({
