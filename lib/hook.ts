@@ -27,7 +27,31 @@ export type post = { who: string | null; text: string };
 
 const cleanname = (s: string) => s.replace(/discord|clyde/gi, (m) => m[0] + "​" + m.slice(1)).slice(0, 80) || "Server";
 
-export async function send(ch: string, posts: post[], srv: string) {
+const age = (id: string) => Date.now() - Number((BigInt(id) >> 22n) + 1420070400000n);
+
+async function already(ch: string): Promise<Set<string>> {
+	const out = new Set<string>();
+	try {
+		const list = await dc<{ id: string; content?: string; author?: { username?: string } }[]>("GET", `/channels/${ch}/messages?limit=50`);
+		for (const m of list) {
+			if (age(m.id) > 5 * 60_000) continue;
+			const who = (m.author?.username ?? "").toLowerCase();
+			for (const l of (m.content ?? "").split("\n")) {
+				out.add(`${who}|${l}`);
+				const x = l.match(/^\*\*([A-Za-z0-9_]{1,16})\*\*: (.*)$/);
+				if (x) out.add(`${x[1].toLowerCase()}|${x[2]}`);
+			}
+		}
+	} catch {
+		return out;
+	}
+	return out;
+}
+
+export async function send(ch: string, all: post[], srv: string) {
+	if (!all.length) return;
+	const seen = await already(ch);
+	const posts = all.filter((p) => !seen.has(`${(p.who ?? cleanname(srv || "Server")).toLowerCase()}|${p.text}`));
 	if (!posts.length) return;
 	const merged: post[] = [];
 	for (const p of posts) {
