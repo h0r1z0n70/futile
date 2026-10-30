@@ -27,6 +27,7 @@ export const env = {
 	get prefix() { return (get("nick_prefix") ?? "futile |").trim(); },
 	get teamonly() { return flag("kills_only_team", true); },
 	get deathsteam() { return flag("deaths_only_team", true); },
+	get chatteam() { return flag("chat_only_team", true); },
 	get goals() { return get("goals_channel") ?? "1564671542648905769"; },
 	get gwch() { return get("giveaway_channel") ?? ""; },
 	get tz() {
