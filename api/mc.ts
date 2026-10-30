@@ -5,7 +5,7 @@ import { env } from "../lib/env.js";
 import { inbox, outbox, wrap } from "../lib/guard.js";
 import { send, type post } from "../lib/hook.js";
 import { dupe } from "../lib/mem.js";
-import { team } from "../lib/team.js";
+import { team, teamok } from "../lib/team.js";
 
 const path = "/api/mc";
 
@@ -91,13 +91,18 @@ export const POST = wrap(async (r) => {
 	return outbox({ ok: !errs.length, n: evs.length, bid: bd.bid, bh: bd.bh, board: bd.did, errs }, path);
 });
 
-const isteam = async (c: ctx, name: string) => [...(await c.getteam()).values()].some((n) => n.toLowerCase() === name.toLowerCase());
+const isteam = async (c: ctx, name: string) => {
+	const tm = await c.getteam();
+	if (!teamok) return true;
+	return [...tm.values()].some((n) => n.toLowerCase() === name.toLowerCase());
+};
 
 async function handle(ev: any, c: ctx) {
 	switch (ev.t) {
 		case "say": {
 			const who = nm(ev.who), msg = tx(ev.msg, 400).trim();
 			if (!who || !msg || dupe(`s:${who}:${msg}`, 8_000)) return;
+			if (env.chatteam && !(await isteam(c, who))) return;
 			c.posts.push({ who, text: safe(msg) });
 			return;
 		}
