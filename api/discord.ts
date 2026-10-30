@@ -1,6 +1,6 @@
-import { esc } from "../lib/cards.js";
+import { blurple, esc, orange, red, t, wrap as card } from "../lib/cards.js";
 import { connect, disconnect, perms } from "../lib/cmds.js";
-import { dc, dcerr, nopings, quiet } from "../lib/dc.js";
+import { dc, dcerr, nopings, quiet, v2 } from "../lib/dc.js";
 import { env } from "../lib/env.js";
 import * as give from "../lib/give.js";
 import { goal } from "../lib/goals.js";
@@ -62,8 +62,17 @@ export const POST = wrap(async (r) => {
 	return reply("Unknown command.");
 });
 
+const bad = /^(You need|You can't|You are not|I can't|I couldn't|I don't|That is not|That user|There is no|There are no|There is nobody|Use this|This bot|Unknown|Pick a|Write what|Something went wrong|The list is full|\*\*.+\*\* is already)/;
+
 const reply = (content: string, hidden = true) =>
-	json({ type: 4, data: { content, flags: hidden ? quiet : 0, allowed_mentions: nopings } });
+	json({
+		type: 4,
+		data: {
+			flags: (hidden ? quiet : 0) | v2,
+			components: [card(bad.test(content) ? red : hidden ? blurple : orange, [t(content)])],
+			allowed_mentions: nopings,
+		},
+	});
 
 async function link(i: any) {
 	const u = i.member.user;
