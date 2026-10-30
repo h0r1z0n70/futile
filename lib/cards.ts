@@ -58,7 +58,7 @@ export function ggcard(g: gginfo) {
 	]);
 }
 
-export type row = { name: string; on: boolean; dim?: string; seen: number; team: boolean };
+export type row = { name: string; on: boolean; dim?: string; seen: number };
 
 const ansi = { yellow: "\u001b[1;33m", red: "\u001b[1;31m", grey: "\u001b[0;30m", end: "\u001b[0m" };
 const maxblock = 3300;
@@ -71,25 +71,22 @@ export function stamp(ms: number, tz: number) {
 	return `${mon} ${d.getUTCDate()} ${hh}:${mm}`;
 }
 
-export function boardcards(rows: row[], up: boolean, srv: string, tz: number) {
+export function boardcards(rows: row[], srv: string, tz: number, link: string) {
 	const on = rows.filter((r) => r.on).length;
-	const teamall = rows.filter((r) => r.team).length;
-	const teamon = rows.filter((r) => r.team && r.on).length;
 	const pad = Math.min(16, Math.max(8, ...rows.map((r) => r.name.length)));
 
-	let top = `## Futile players${srv ? ` on ${esc(srv)}` : ""}\n`;
-	top += `**${on}** of **${rows.length}** recorded players are online.`;
-	if (teamall) top += ` Teammates online: **${teamon}** of **${teamall}**.`;
-	if (!up) top += "\nNo teammate is on the server right now, so this list can be out of date.";
+	let top = `## [Futile players${srv ? ` on ${esc(srv)}` : ""}](${link})\n`;
+	top += rows.length
+		? `**${on}** of **${rows.length}** players with the mod are online.`
+		: "Nobody with the mod has joined yet.";
 
 	const lines: string[] = [];
 	let size = 0;
 	let hidden = 0;
 	for (const r of rows) {
-		const tag = r.team ? " [team]" : "";
 		const l = r.on
-			? `${ansi.yellow}${r.name.padEnd(pad)}  online${r.dim ? ` (${dimname(r.dim)})` : ""}${tag}${ansi.end}`
-			: `${ansi.red}${r.name.padEnd(pad)}  ${r.seen ? `last seen ${stamp(r.seen, tz)}` : "not seen yet"}${tag}${ansi.end}`;
+			? `${ansi.yellow}${r.name.padEnd(pad)}  online${r.dim ? ` (${dimname(r.dim)})` : ""}${ansi.end}`
+			: `${ansi.red}${r.name.padEnd(pad)}  ${r.seen ? `last seen ${stamp(r.seen, tz)}` : "offline"}${ansi.end}`;
 		if (size + l.length + 1 > maxblock) {
 			hidden++;
 			continue;
@@ -98,12 +95,9 @@ export function boardcards(rows: row[], up: boolean, srv: string, tz: number) {
 		size += l.length + 1;
 	}
 	if (hidden) lines.push(`${ansi.grey}and ${hidden} more${ansi.end}`);
-	if (!lines.length) lines.push(`${ansi.grey}Nobody recorded yet. Join ${srv || "the server"} with the mod on.${ansi.end}`);
 
-	const color = on ? yellow : rows.length ? red : grey;
-	return [wrap(color, [
-		t(top),
-		t("```ansi\n" + lines.join("\n") + "\n```"),
-		t(`-# Yellow means online. Red means offline. Times are UTC${tz >= 0 ? "+" : ""}${tz}. Updated ${when(Date.now(), "R")}`),
-	])];
+	const parts = [t(top)];
+	if (lines.length) parts.push(t("```ansi\n" + lines.join("\n") + "\n```"));
+	parts.push(t(`-# Yellow means online. Red means offline. Times are UTC${tz >= 0 ? "+" : ""}${tz}. Updated ${when(Date.now(), "R")}`));
+	return [wrap(on ? yellow : rows.length ? red : grey, parts)];
 }
