@@ -103,7 +103,9 @@ async function handle(ev: any, c: ctx) {
 		case "say": {
 			const who = nm(ev.who), msg = tx(ev.msg, 400).trim();
 			if (!who || !msg || dupe(`s:${who}:${msg}`, 8_000)) return;
-			c.posts.push({ who, text: safe(msg) });
+			const boss = env.pingers.includes(who.toLowerCase()) && /@(everyone|here)\b/.test(msg);
+			const text = boss ? safe(msg).replace(/@\u200b(everyone|here)\b/g, "@$1") : safe(msg);
+			c.posts.push({ who, text, ping: boss });
 			return;
 		}
 		case "line": {
