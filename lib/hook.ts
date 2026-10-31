@@ -1,5 +1,5 @@
 import { head } from "./cards.js";
-import { dc, dcerr, nopings, say } from "./dc.js";
+import { dc, dcerr, nopings } from "./dc.js";
 import { env } from "./env.js";
 
 type wh = { id: string; token: string };
@@ -23,7 +23,9 @@ async function find(ch: string): Promise<wh | null> {
 	}
 }
 
-export type post = { who: string | null; text: string };
+export type post = { who: string | null; text: string; ping?: boolean };
+
+const loud = { parse: ["everyone"] };
 
 const cleanname = (s: string) => s.replace(/discord|clyde/gi, (m) => m[0] + "​" + m.slice(1)).slice(0, 80) || "Server";
 
@@ -48,6 +50,12 @@ async function already(ch: string): Promise<Set<string>> {
 	return out;
 }
 
+const plain = (ch: string, p: post) =>
+	dc("POST", `/channels/${ch}/messages`, {
+		content: (p.who ? `**${p.who}**: ${p.text}` : p.text).slice(0, 2000),
+		allowed_mentions: p.ping ? loud : nopings,
+	});
+
 export async function send(ch: string, all: post[], srv: string) {
 	if (!all.length) return;
 	const seen = await already(ch);
@@ -56,7 +64,7 @@ export async function send(ch: string, all: post[], srv: string) {
 	const merged: post[] = [];
 	for (const p of posts) {
 		const last = merged[merged.length - 1];
-		if (last && last.who === p.who && last.text.length + p.text.length + 1 <= 1900) last.text += "\n" + p.text;
+		if (last && last.who === p.who && !!last.ping === !!p.ping && last.text.length + p.text.length + 1 <= 1900) last.text += "\n" + p.text;
 		else merged.push({ ...p });
 	}
 	let list = merged;
@@ -68,7 +76,7 @@ export async function send(ch: string, all: post[], srv: string) {
 	const w = await find(ch);
 	for (const p of list) {
 		if (!w) {
-			await say(ch, p.who ? `**${p.who}**: ${p.text}` : p.text);
+			await plain(ch, p);
 			continue;
 		}
 		try {
@@ -76,12 +84,12 @@ export async function send(ch: string, all: post[], srv: string) {
 				content: p.text.slice(0, 2000),
 				username: cleanname(p.who ?? srv ?? "Server"),
 				avatar_url: p.who ? head(p.who) : undefined,
-				allowed_mentions: nopings,
+				allowed_mentions: p.ping ? loud : nopings,
 			}, { noauth: true });
 		} catch (err) {
 			if (err instanceof dcerr && (err.code === 10015 || err.status === 404)) {
 				cache.delete(ch);
-				await say(ch, p.who ? `**${p.who}**: ${p.text}` : p.text);
+				await plain(ch, p);
 			} else throw err;
 		}
 	}
