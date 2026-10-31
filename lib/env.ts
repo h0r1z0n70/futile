@@ -30,6 +30,7 @@ export const env = {
 	get chatteam() { return flag("chat_only_team", false); },
 	get goals() { return get("goals_channel") ?? "1564671542648905769"; },
 	get gwch() { return get("giveaway_channel") ?? ""; },
+	get pingers() { return (get("ping_players") ?? "temphor").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean); },
 	get tz() {
 		const n = Number(get("tz") ?? "8");
 		return Number.isFinite(n) && Math.abs(n) <= 14 ? n : 8;
